@@ -1,0 +1,66 @@
+//@version=6
+strategy('ZigZag Strategy', overlay = true, margin_long = 100, margin_short = 100)
+
+// Параметры
+sigma = input.float(2.0, title = 'Дирекшенал чейндж порог (%)', minval = 0.1, maxval = 10.0) / 100
+orderPercent = input.float(3.0, title = 'Процент для стоп-ордера ниже минимума (%)', minval = 0.1, maxval = 5.0) / 100
+
+// Переменные для состояния
+var float tmpMax = na
+var float tmpMin = na
+var int tmpMaxIndex = na
+var int tmpMinIndex = na
+var bool upZig = true
+var float lastBuyPrice = na
+var bool inTrade = false
+
+// Определение экстремумов
+if na(tmpMax) or na(tmpMin)
+    tmpMax := high
+    tmpMin := low
+    tmpMaxIndex := bar_index
+    tmpMinIndex := bar_index
+    tmpMinIndex
+else
+    if upZig
+        if high > tmpMax
+            tmpMax := high
+            tmpMaxIndex := bar_index
+            tmpMaxIndex
+        else if close < tmpMax * (1 - sigma)
+            upZig := false
+            tmpMin := low
+            tmpMinIndex := bar_index
+            strategy.cancel('Buy Stop')
+            if not inTrade
+                stopPrice = low * (1 - orderPercent)
+                strategy.entry('Buy', strategy.long, stop = stopPrice, comment = 'Buy Stop')
+            label.new(tmpMaxIndex, tmpMax, 'Top', style = label.style_label_down, color = color.red, textcolor = color.white)
+    else
+        if low < tmpMin
+            tmpMin := low
+            tmpMinIndex := bar_index
+            tmpMinIndex
+        else if close > tmpMin * (1 + sigma)
+            upZig := true
+            tmpMax := high
+            tmpMaxIndex := bar_index
+            if inTrade
+                strategy.close('Buy', comment = 'Sell')
+            label.new(tmpMinIndex, tmpMin, 'Bottom', style = label.style_label_up, color = color.green, textcolor = color.white)
+
+// Отслеживание позиции
+inTrade := strategy.position_size > 0
+
+// Визуализация ZigZag
+line zigzag = na
+if not upZig and not na(tmpMaxIndex)
+    zigzag := line.new(bar_index - 1, tmpMax, tmpMaxIndex, tmpMax, color = color.red, width = 2)
+    zigzag
+else if upZig and not na(tmpMinIndex)
+    zigzag := line.new(bar_index - 1, tmpMin, tmpMinIndex, tmpMin, color = color.green, width = 2)
+    zigzag
+
+// Отладочная информация
+plot(tmpMax, color = color.red, linewidth = 1)
+plot(tmpMin, color = color.green, linewidth = 1)
